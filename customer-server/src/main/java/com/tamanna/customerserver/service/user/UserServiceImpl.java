@@ -81,7 +81,7 @@ public class UserServiceImpl implements UserService{
         try {
             User existingUser = userRepository.findById(id)
                     .orElseThrow(()->new ApiSystemException("User is not found"));
-            existingUser.setPassword(password);
+            existingUser.setPassword(passwordEncoder.encode(password));
             UserDTO userDTO = AutoUserMapper.MAPPER.mapToUserDTO(existingUser);
             logger.info("Update Password Information");
             return userDTO;

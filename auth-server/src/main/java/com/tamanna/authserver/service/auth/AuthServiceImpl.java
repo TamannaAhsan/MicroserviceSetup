@@ -47,15 +47,19 @@ public class AuthServiceImpl implements AuthService{
     @Override
     public TokenResponseDTO createOAuthToken(UserLoginDTO userLoginDTO, HttpServletRequest request) throws ApiAuthorizationException, ApiSystemException {
         try{
-            Boolean isAuthenticatedClient = authenticateTokenRequest(request);
+            // authorize token request
+            OAuth2Client client = authenticateTokenRequest(request);
 
-            if(!isAuthenticatedClient)
+            if(client == null)
                 throw new ApiAuthorizationException("Client credentials not valid");
 
+            // verify username password from customer service
             UserLoginDTO response = userInterface.isUserNamePasswordValid(userLoginDTO);
 
             if(response == null)
                 throw new ApiAuthorizationException("Not Authorized");
+
+            // create and store  the token in the db
             OAuthToken oAuthToken = new OAuthToken();
 
             oAuthToken.setAccessTokenValue(createAccessToken(response));
@@ -70,21 +74,23 @@ public class AuthServiceImpl implements AuthService{
 
             oAuthTokenRepository.save(oAuthToken);
 
+            // return the response
             return TokenResponseDTO.builder()
                     .accessToken(oAuthToken.getAccessTokenValue())
                     .refreshToken(oAuthToken.getRefreshTokenValue())
                     .expiresIn(tokenExpirationAfterDays.intValue())
                     .tokenType("bearer")
                     .jti("dummy_data_jti")
-                    .scope("consumer_ops")
+                    .scope(client.getScopes())
                     .build();
         }catch (Exception e) {
             throw new ApiAuthorizationException("user.name.not.found");
         }
     }
 
-    private Boolean authenticateTokenRequest(HttpServletRequest request) throws ApiAuthorizationException {
+    private OAuth2Client authenticateTokenRequest(HttpServletRequest request) {
         try{
+
             String encodedAuthRequest = request.getHeader(HttpHeaders.AUTHORIZATION).split(" ")[1];
             String decodedAuthRequest = new String(Base64.getDecoder().decode(encodedAuthRequest.getBytes()));
             String[] authRequestArray = decodedAuthRequest.split(":");
@@ -92,22 +98,33 @@ public class AuthServiceImpl implements AuthService{
             String clientSecret = authRequestArray[1].trim();
 
             OAuth2Client client = oAuth2ClientRepository.findByClientId(clientId)
-                    .orElseThrow(()-> new ApiAuthorizationException());
+                    .orElseThrow(ApiAuthorizationException::new);
 
-            return clientSecret.equals(client.getClientSecret());
+            if(clientSecret.equals(client.getClientSecret()))
+                return  client;
+
+            return null;
         } catch (Exception e){
-            return Boolean.FALSE;
+            return null;
         }
     }
 
     @Override
-    public TokenResponseDTO createOAuthTokenForClient(UserLoginDTO userLoginDTO) throws ApiAuthorizationException {
+    public TokenResponseDTO createOAuthTokenForClient(UserLoginDTO userLoginDTO, HttpServletRequest request) throws ApiAuthorizationException {
+        // authorize token request
+        OAuth2Client client = authenticateTokenRequest(request);
+
+        if(client == null)
+            throw new ApiAuthorizationException("Client credentials not valid");
+
+        // get the oauth2 client
         OAuth2Client oAuth2Client = oAuth2ClientRepository.findByClientId(userLoginDTO.getClientId()).
                 orElseThrow(()->new ApiAuthorizationException());
 
+        // return the response
         return TokenResponseDTO.builder().
                 accessToken(createAccessTokenForClient(userLoginDTO)).
-                scope("client_ops").
+                scope(client.getScopes()).
                 tokenType("bearer").
                 expiresIn(oAuth2Client.getAccessTokenValidity()).
                 build();

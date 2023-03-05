@@ -16,6 +16,8 @@ spring:
           uri: lb://AUTH-SERVICE
           predicates:
             - Path=/api/v1/auth/**
+          filters:
+            - RewritePath=/api/v1/auth/(?<path>.*), /$\{path}
 
 
         - id: CUSTOMER-SERVICE
@@ -23,6 +25,7 @@ spring:
           predicates:
             - Path=/api/v1/user/**, /api/v1/roles/**
           filters:
+            - RewritePath=/api/v1/auth/(?<path>.*), /$\{path}
             - AuthFilter
 
 

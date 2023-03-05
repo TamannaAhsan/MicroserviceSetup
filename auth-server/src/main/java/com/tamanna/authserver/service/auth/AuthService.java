@@ -16,7 +16,7 @@ public interface AuthService {
 
     TokenResponseDTO createOAuthToken(UserLoginDTO userLoginDTO, HttpServletRequest request) throws ApiAuthorizationException, ApiSystemException;
 
-    TokenResponseDTO createOAuthTokenForClient(UserLoginDTO userLoginDTO) throws ApiAuthorizationException;
+    TokenResponseDTO createOAuthTokenForClient(UserLoginDTO userLoginDTO, HttpServletRequest request) throws ApiAuthorizationException;
 
     OAuth2Client createClient (OAuth2Client oAuth2Client) throws ApiSystemException;
 

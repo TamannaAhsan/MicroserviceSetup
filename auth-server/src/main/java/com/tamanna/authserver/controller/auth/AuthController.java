@@ -68,7 +68,7 @@ public class AuthController {
             userLoginDTO.setClientId(clientId);
             userLoginDTO.setClientSecret(clientSecret);
 
-            return authService.createOAuthTokenForClient(userLoginDTO);
+            return authService.createOAuthTokenForClient(userLoginDTO, request);
         }
         return null;
     }

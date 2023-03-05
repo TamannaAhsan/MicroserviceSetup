@@ -4,9 +4,17 @@ import com.tamanna.apigateway.dto.UserTokenValidationDto;
 import com.tamanna.apigateway.exception.ApiSystemException;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
+import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.adapter.DefaultServerWebExchange;
+import reactor.core.CoreSubscriber;
+import reactor.core.publisher.Mono;
+
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Component
 public class AuthFilter extends AbstractGatewayFilterFactory<AuthFilter.Config> {
@@ -18,12 +26,19 @@ public class AuthFilter extends AbstractGatewayFilterFactory<AuthFilter.Config> 
         this.webClientBuilder = webClientBuilder;
     }
 
+
     @Override
     public GatewayFilter apply(Config config) {
         return (exchange, chain) -> {
+            String path = exchange.getRequest().getURI().getPath();
+            Matcher matcher = Pattern.compile(".*/v3/api-docs$").matcher(path);
+            if(matcher.matches())
+                return Mono.empty();
+
             if (!exchange.getRequest().getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
                  throw new ApiSystemException("Missing authorization information");
             }
+
 
             String authHeader = exchange.getRequest().getHeaders().get(HttpHeaders.AUTHORIZATION).get(0);
 
