@@ -30,11 +30,6 @@ public class AuthFilter extends AbstractGatewayFilterFactory<AuthFilter.Config> 
     @Override
     public GatewayFilter apply(Config config) {
         return (exchange, chain) -> {
-            String path = exchange.getRequest().getURI().getPath();
-            Matcher matcher = Pattern.compile(".*/v3/api-docs$").matcher(path);
-            if(matcher.matches())
-                return Mono.empty();
-
             if (!exchange.getRequest().getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
                  throw new ApiSystemException("Missing authorization information");
             }

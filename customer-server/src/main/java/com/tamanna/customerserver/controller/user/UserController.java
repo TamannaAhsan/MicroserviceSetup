@@ -51,8 +51,8 @@ public class UserController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<UserDTO> resetPassword (@PathVariable Long id, @RequestBody String password) throws ApiSystemException {
-        UserDTO userDTO = userService.resetPassword(id, password);
+    public ResponseEntity<UserDTO> resetPassword (@PathVariable Long id, @RequestBody UserLoginDTO password) throws ApiSystemException {
+        UserDTO userDTO = userService.resetPassword(id, password.getPassword());
         return new ResponseEntity<>(userDTO, HttpStatus.OK);
     }
 }

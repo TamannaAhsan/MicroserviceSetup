@@ -12,6 +12,10 @@ import com.tamanna.authserver.response.token.TokenResponseDTO;
 import com.tamanna.authserver.response.token.UserTokenValidationDto;
 import com.tamanna.authserver.response.user.UserLoginDTO;
 import com.tamanna.authserver.response.user.UserResponseDTO;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Header;
+import io.jsonwebtoken.Jwt;
+import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +41,8 @@ import static com.tamanna.authserver.utils.Utility.isNotNull;
 public class AuthServiceImpl implements AuthService{
 
     private static final Logger logger = LoggerFactory.getLogger(OAuth2Client.class);
+    public static final String CONSUMER_OPS = "consumer_ops";
+    public static final String CLIENT_OPS = "client_ops";
     private UserInterface userInterface;
     private SecretKey secretKey;
     
@@ -167,7 +173,7 @@ public class AuthServiceImpl implements AuthService{
     private String createAccessToken(UserLoginDTO userLoginDTO){
         String token = Jwts.builder()
                 .setSubject(userLoginDTO.getUserName())
-                .claim("authorities", userLoginDTO.getRole())
+                .claim("type", CONSUMER_OPS)
                 .setIssuedAt(new Date())
                 .setExpiration(java.sql.Date.valueOf(
                         LocalDate.now().plusDays(tokenExpirationAfterDays)
@@ -180,7 +186,7 @@ public class AuthServiceImpl implements AuthService{
     private String createRefreshToken(UserLoginDTO userLoginDTO){
         String token = Jwts.builder()
                 .setSubject(userLoginDTO.getUserName())
-                .claim("authorities", userLoginDTO.getRole())
+                .claim("type", CONSUMER_OPS)
                 .setIssuedAt(new Date())
                 .setExpiration(java.sql.Date.valueOf(
                         LocalDate.now().plusDays(refreshTokenExpirationAfterDays)
@@ -194,6 +200,7 @@ public class AuthServiceImpl implements AuthService{
         String token = Jwts.builder()
                 .setSubject(userLoginDTO.getClientId())
                 .claim("scope", userLoginDTO.getScope())
+                .claim("type", CLIENT_OPS)
                 .setIssuedAt(new Date())
                 .setExpiration(java.sql.Date.valueOf(
                         LocalDate.now().plusDays(tokenExpirationAfterDays)
@@ -205,27 +212,46 @@ public class AuthServiceImpl implements AuthService{
 
     public UserTokenValidationDto validateToken(String token) throws ApiAuthorizationException {
         try{
-            String username = Jwts.parser()
+            JwtParser jwtParser = Jwts.parserBuilder()
+                    .setSigningKey(secretKey)
+                    .build();
+
+            Jwt<Header, Claims> jwt = jwtParser.parse(token);
+            Claims claims = jwt.getBody();
+
+            String type = (String) claims.get("type");
+
+            String subject = Jwts.parser()
                     .setSigningKey(secretKey)
                     .parseClaimsJws(token)
                     .getBody()
                     .getSubject();
 
-            Optional<UserResponseDTO> userResponseDTO = userInterface.fetchUserByUsername(username);
+            Long id = null;
 
-            if(userResponseDTO.isEmpty())
-                throw new ApiAuthorizationException("Not Authorized");
+            if(type.equalsIgnoreCase(CONSUMER_OPS)){
+                Optional<UserResponseDTO> userResponseDTO = userInterface.fetchUserByUsername(subject);
 
-            UserResponseDTO userResponse = userResponseDTO.get();
+                if(userResponseDTO.isEmpty())
+                    throw new ApiAuthorizationException("Not Authorized");
+
+                UserResponseDTO userResponse = userResponseDTO.get();
+
+                id = userResponse.getId();
+            } else if (type.equalsIgnoreCase(CLIENT_OPS)) {
+                OAuth2Client client =  oAuth2ClientRepository.findByClientId(subject)
+                        .orElseThrow(()-> new ApiAuthorizationException("Not authorized"));
+                id = client.getId();
+            }
 
             return UserTokenValidationDto.builder()
-                    .username(username)
+                    .username(subject)
                     .token(token)
-                    .id(userResponse.getId())
+                    .id(id)
                     .build();
 
         }catch (Exception e) {
-            throw new ApiAuthorizationException("username.password.not.matched");
+            throw new ApiAuthorizationException("credentials.not.valid");
         }
     }
 }
